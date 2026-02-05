@@ -151,7 +151,7 @@
     <div>
       <h1>Event Budget Builder</h1>
       <div class="sub">
-        Select items under a fixed budget, meet objectives, survive surprises, then submit to generate a share code and leaderboard score.
+        Build an event under budget, meet objectives, choose a venue that fits your target attendees, survive surprises, then submit to generate a share code + leaderboard score.
       </div>
     </div>
     <div class="row">
@@ -246,7 +246,7 @@
           <button id="exportLbBtn" class="secondary" title="Copies leaderboard JSON to clipboard">Export</button>
         </div>
         <div class="footer-note">
-          Local leaderboard is per device. If you want a class-wide leaderboard, set the Google Sheet endpoint in the code.
+          Local leaderboard is per device. For a class-wide leaderboard, set the Google Sheet endpoint in the code.
         </div>
       </div>
     </div>
@@ -284,23 +284,24 @@
 <script>
 /***********************
  * OPTIONAL: Google Sheets endpoint
- * If you want a class-wide leaderboard, publish a Google Apps Script Web App
- * and paste the URL below. Leave as empty string to use local-only.
- *
- * Expected behavior: POST JSON payload to the endpoint.
- * Your script should store rows: timestamp, team, scenario, score, spend, budget, perHead, code, surprises.
  ***********************/
 const GOOGLE_SHEET_WEBAPP_URL = ""; // Example: "https://script.google.com/macros/s/XXXXX/exec";
 
 /***********************
  * DATA: ITEMS
+ * Venue items now have a CAPACITY (max pax).
+ * The game enforces:
+ * 1) exactly 1 venue selected
+ * 2) selected venue capacity must be >= target attendees
  ***********************/
 const ITEMS = [
-  // VENUE / LOGISTICS
-  { id:"venue_classroom", name:"Campus classroom (half day)", category:"Venue", cost: 2500, tags:["venue","budget"], xp: 1 },
-  { id:"venue_auditorium", name:"Auditorium rental (half day)", category:"Venue", cost: 12000, tags:["venue"], xp: 2 },
-  { id:"venue_hotel", name:"Hotel function room (half day)", category:"Venue", cost: 35000, tags:["venue","premium"], xp: 3 },
+  // VENUE (each with capacity)
+  { id:"venue_classroom", name:"Campus classroom (half day)", category:"Venue", cost: 2500, capacity: 60, tags:["venue","budget"], xp: 1 },
+  { id:"venue_auditorium", name:"Auditorium rental (half day)", category:"Venue", cost: 12000, capacity: 180, tags:["venue"], xp: 2 },
+  { id:"venue_hotel", name:"Hotel function room (half day)", category:"Venue", cost: 35000, capacity: 120, tags:["venue","premium"], xp: 3 },
+  { id:"venue_gym", name:"Gym / covered court (half day)", category:"Venue", cost: 18000, capacity: 350, tags:["venue","large"], xp: 2 },
 
+  // PRODUCTION / ENGAGEMENT
   { id:"sound_basic", name:"Basic sound system", category:"Production", cost: 5000, tags:["audio"], xp: 1 },
   { id:"lights_basic", name:"Basic lighting", category:"Production", cost: 4500, tags:["lights"], xp: 1 },
   { id:"stage_backdrop", name:"Simple stage backdrop", category:"Production", cost: 3500, tags:["branding"], xp: 1 },
@@ -349,7 +350,9 @@ const SCENARIOS = [
     objectives: [
       { id:"target_attendees", label:"Plan for at least 150 attendees", type:"attendeesMin", min:150 },
 
-      { id:"must_venue", label:"Include a venue option", type:"categoryMin", category:"Venue", min:1 },
+      // NEW: Venue rules
+      { id:"venue_exactly_one", label:"Select exactly 1 venue", type:"venueExactlyOne" },
+      { id:"venue_capacity", label:"Selected venue must fit your target attendees", type:"venueCapacityMin" },
 
       { id:"must_water", label:"Provide water per attendee", type:"mustIncludeItem", itemId:"water" },
       { id:"must_food_choice", label:"Provide either snacks or lunch per attendee", type:"mustIncludeAnyItems", itemIds:["snacks","lunch"] },
@@ -382,7 +385,10 @@ const SCENARIOS = [
     baseAttendeeTarget: 100,
     objectives: [
       { id:"target_attendees", label:"Plan for at least 100 attendees", type:"attendeesMin", min:100 },
-      { id:"must_venue", label:"Include a venue option", type:"categoryMin", category:"Venue", min:1 },
+
+      // NEW: Venue rules
+      { id:"venue_exactly_one", label:"Select exactly 1 venue", type:"venueExactlyOne" },
+      { id:"venue_capacity", label:"Selected venue must fit your target attendees", type:"venueCapacityMin" },
 
       { id:"must_prod", label:"Include at least 2 production items", type:"categoriesCountMin", categories:["Production"], min:2 },
       { id:"must_doc", label:"Include documentation (photo or video)", type:"categoryMin", category:"Documentation", min:1 },
@@ -404,7 +410,6 @@ const SCENARIOS = [
 
 /***********************
  * SURPRISES
- * Each surprise modifies the live scenario state (budget, target attendees, bans, extra objectives).
  ***********************/
 const SURPRISE_DECK = [
   {
@@ -417,7 +422,10 @@ const SURPRISE_DECK = [
     id:"sponsor_added",
     title:"New sponsor joined",
     text:"New sponsor joined. Budget increased by ₱6,000 but you must include marketing.",
-    apply: (st) => { st.budgetDelta += 6000; st.extraObjectives.push({ id:"surp_mkt", label:"Surprise: include at least 1 marketing item", type:"categoryMin", category:"Marketing", min:1 }); }
+    apply: (st) => {
+      st.budgetDelta += 6000;
+      st.extraObjectives.push({ id:"surp_mkt", label:"Surprise: include at least 1 marketing item", type:"categoryMin", category:"Marketing", min:1 });
+    }
   },
   {
     id:"attendance_spike",
@@ -427,7 +435,7 @@ const SURPRISE_DECK = [
   },
   {
     id:"venue_unavailable",
-    title:"Preferred venue unavailable",
+    title:"Venue unavailable",
     text:"Auditorium is unavailable. You cannot select it.",
     apply: (st) => { st.bannedItemIds.add("venue_auditorium"); }
   },
@@ -444,13 +452,21 @@ const SURPRISE_DECK = [
     id:"accessibility_focus",
     title:"Inclusion focus",
     text:"Inclusion focus: You must include 2 accessibility items (not just 1).",
-    apply: (st) => { st.extraObjectives.push({ id:"surp_acc2", label:"Surprise: include at least 2 accessibility items", type:"categoryMin", category:"Accessibility", min:2 }); }
+    apply: (st) => {
+      st.extraObjectives.push({ id:"surp_acc2", label:"Surprise: include at least 2 accessibility items", type:"categoryMin", category:"Accessibility", min:2 });
+    }
   },
   {
     id:"cost_inflation",
     title:"Cost inflation",
     text:"Supplier price increase: food lines cost +10% (water, snacks, lunch).",
     apply: (st) => { st.foodInflationPct += 0.10; }
+  },
+  {
+    id:"venue_downsize",
+    title:"Venue capacity restriction",
+    text:"Venue restriction: Gym is unavailable. Large option removed.",
+    apply: (st) => { st.bannedItemIds.add("venue_gym"); }
   }
 ];
 
@@ -491,19 +507,16 @@ const clearLbBtn = byId("clearLbBtn");
 const exportLbBtn = byId("exportLbBtn");
 const lbModePill = byId("lbModePill");
 
-const LB_KEY = "event_budget_leaderboard_v1";
+const LB_KEY = "event_budget_leaderboard_v2_venuecaps";
 
 let state = {
   scenarioId: SCENARIOS[0].id,
 
-  // selections: { [itemId]: { checked:boolean, qty:number } }
   selections: {},
 
-  // lock
   isLocked: false,
   submittedAt: null,
 
-  // surprise runtime modifiers
   budgetDelta: 0,
   attendeeDelta: 0,
   bannedItemIds: new Set(),
@@ -519,7 +532,7 @@ function baseScenario(){
 function currentScenarioComputed(){
   const s = baseScenario();
   const budget = s.baseBudget + state.budgetDelta;
-  const audience = s.baseAudience; // shown as base
+  const audience = s.baseAudience;
   const attendeeTarget = Math.max(1, s.baseAttendeeTarget + state.attendeeDelta);
 
   return {
@@ -542,6 +555,33 @@ function getSelection(itemId){
 
 function isFoodInflated(itemId){
   return ["water","snacks","lunch"].includes(itemId);
+}
+
+function venueItems(){
+  return ITEMS.filter(i => i.category === "Venue" && !state.bannedItemIds.has(i.id));
+}
+
+function selectedVenueIds(){
+  const ids = [];
+  for(const v of venueItems()){
+    const sel = getSelection(v.id);
+    if(sel.checked) ids.push(v.id);
+  }
+  return ids;
+}
+
+function getSelectedVenue(){
+  const ids = selectedVenueIds();
+  if(ids.length !== 1) return null;
+  return ITEMS.find(i => i.id === ids[0]) || null;
+}
+
+function enforceSingleVenue(changedVenueId){
+  // When a venue checkbox is turned on, turn off all other venues automatically
+  for(const v of ITEMS.filter(i => i.category === "Venue")){
+    if(v.id === changedVenueId) continue;
+    if(state.selections[v.id]) state.selections[v.id].checked = false;
+  }
 }
 
 function calcTotals(){
@@ -606,6 +646,18 @@ function sumXP(){
   return xp;
 }
 
+function venueExactlyOneOk(){
+  return selectedVenueIds().length === 1;
+}
+
+function venueCapacityOk(){
+  const s = currentScenarioComputed();
+  const v = getSelectedVenue();
+  if(!v) return false;
+  const cap = Number(v.capacity || 0);
+  return cap >= s.attendeeTarget;
+}
+
 function checkObjective(obj, totals){
   const s = currentScenarioComputed();
   const target = s.attendeeTarget;
@@ -613,6 +665,12 @@ function checkObjective(obj, totals){
   switch(obj.type){
     case "attendeesMin":
       return target >= obj.min;
+
+    case "venueExactlyOne":
+      return venueExactlyOneOk();
+
+    case "venueCapacityMin":
+      return venueCapacityOk();
 
     case "categoryMin":
       return countCategory(obj.category) >= obj.min;
@@ -654,19 +712,7 @@ function computeScore(totals){
   const requiredOk = s.objectives.every(o => checkObjective(o, totals));
   const bonusPoints = (s.bonus||[]).reduce((sum, b) => sum + (checkObjective(b, totals) ? (b.points||0) : 0), 0);
 
-  // Simple scoring that feels like a game:
-  // Base:
-  // - 12 points if within budget + meet all required
-  // - 7 points if within budget but missing some required
-  // - 3 points if over budget
-  // Penalties:
-  // - minus 1 per missing required objective
-  // - minus 1 per ₱5,000 overspend
-  // Extras:
-  // - + bonusPoints
-  // - + up to 2 points for efficiency (remaining budget)
   let score = 0;
-
   const missingCount = s.objectives.filter(o => !checkObjective(o, totals)).length;
 
   if(!over && requiredOk) score = 12;
@@ -674,16 +720,16 @@ function computeScore(totals){
   else score = 3;
 
   score -= missingCount;
+
   if(over){
     score -= Math.ceil((totals.total - s.budget) / 5000);
   } else {
     const remaining = s.budget - totals.total;
-    const efficiency = Math.min(2, Math.floor(remaining / 8000)); // 0-2 points
+    const efficiency = Math.min(2, Math.floor(remaining / 8000));
     score += efficiency;
   }
 
   score += bonusPoints;
-
   return Math.max(0, score);
 }
 
@@ -701,7 +747,8 @@ function renderScenarioSelect(){
 function itemMatchesFilter(item, q){
   if(!q) return true;
   q = q.toLowerCase().trim();
-  const hay = [item.name, item.category, ...(item.tags||[])].join(" ").toLowerCase();
+  const extra = item.capacity ? ` capacity ${item.capacity}` : "";
+  const hay = [item.name + extra, item.category, ...(item.tags||[])].join(" ").toLowerCase();
   return hay.includes(q);
 }
 
@@ -725,13 +772,26 @@ function renderItems(){
     cb.disabled = state.isLocked;
     cb.addEventListener("change", () => {
       if(state.isLocked) return;
+
       sel.checked = cb.checked;
+
+      // NEW: enforce only 1 venue
+      if(item.category === "Venue" && sel.checked){
+        enforceSingleVenue(item.id);
+      }
+
       renderAll();
     });
 
     const mid = document.createElement("div");
     const title = document.createElement("div");
-    title.innerHTML = `<strong>${item.name}</strong> <span class="tag">${item.category}</span>`;
+
+    const capTag = item.category === "Venue"
+      ? `<span class="tag">Cap: ${item.capacity} pax</span>`
+      : "";
+
+    title.innerHTML = `<strong>${item.name}</strong> <span class="tag">${item.category}</span> ${capTag}`;
+
     const meta = document.createElement("div");
     meta.className = "meta";
 
@@ -744,35 +804,55 @@ function renderItems(){
 
     const priceText = item.perHead ? `${peso(unitCost)} per attendee` : `${peso(unitCost)}`;
     const tags = (item.tags||[]).slice(0,4).map(t => `<span class="tag">${t}</span>`).join("");
-    const xpTag = (item.xp||0) ? `<span class="tag">${item.xp} XP</span>` : `<span class="tag">0 XP</span>`;
+    const xpTag = `<span class="tag">${Number(item.xp||0)} XP</span>`;
 
-    meta.innerHTML = `<span class="price">${priceText}</span> ${xpTag} ${inflationNote} ${tags}`;
+    // Venue fit hint (not required, but helpful)
+    let venueHint = "";
+    if(item.category === "Venue"){
+      const ok = item.capacity >= s.attendeeTarget;
+      venueHint = ok
+        ? `<span class="tag">Fits target ✅</span>`
+        : `<span class="tag">Too small ⚠</span>`;
+    }
+
+    meta.innerHTML = `<span class="price">${priceText}</span> ${xpTag} ${inflationNote} ${venueHint} ${tags}`;
     mid.appendChild(title);
     mid.appendChild(meta);
 
     const right = document.createElement("div");
     right.className = "qty";
-    const qty = document.createElement("input");
-    qty.type = "number";
-    qty.min = "1";
-    qty.value = sel.qty;
-    qty.title = "Quantity";
-    qty.disabled = state.isLocked;
 
-    qty.addEventListener("input", () => {
-      if(state.isLocked) return;
-      sel.qty = Math.max(1, Number(qty.value || 1));
-      renderAll();
-    });
+    // qty input only for non-venue; venues have qty fixed at 1 (no reason to duplicate)
+    if(item.category === "Venue"){
+      const fixed = document.createElement("div");
+      fixed.className = "small mono";
+      fixed.style.minWidth = "170px";
+      fixed.style.textAlign = "right";
+      fixed.textContent = "qty: 1";
+      right.appendChild(fixed);
+    } else {
+      const qty = document.createElement("input");
+      qty.type = "number";
+      qty.min = "1";
+      qty.value = sel.qty;
+      qty.title = "Quantity";
+      qty.disabled = state.isLocked;
 
-    const hint = document.createElement("div");
-    hint.className = "small";
-    hint.style.textAlign = "right";
-    hint.style.minWidth = "170px";
-    hint.textContent = item.perHead ? `x target (${s.attendeeTarget})` : "x qty";
+      qty.addEventListener("input", () => {
+        if(state.isLocked) return;
+        sel.qty = Math.max(1, Number(qty.value || 1));
+        renderAll();
+      });
 
-    right.appendChild(qty);
-    right.appendChild(hint);
+      const hint = document.createElement("div");
+      hint.className = "small";
+      hint.style.textAlign = "right";
+      hint.style.minWidth = "170px";
+      hint.textContent = item.perHead ? `x target (${s.attendeeTarget})` : "x qty";
+
+      right.appendChild(qty);
+      right.appendChild(hint);
+    }
 
     row.appendChild(cb);
     row.appendChild(mid);
@@ -788,8 +868,20 @@ function renderObjectives(totals){
   objectivesBox.innerHTML = "";
 
   const head = document.createElement("div");
-  head.innerHTML = `<div class="small">Goal: meet all required objectives while staying within budget. Surprises can add constraints.</div>`;
   objectivesBox.appendChild(head);
+
+  // Venue summary line
+  const v = getSelectedVenue();
+  const venueSummary = v
+    ? `Venue selected: <span class="mono">${v.id}</span> (Cap ${v.capacity}).`
+    : `No venue selected yet.`;
+
+  head.innerHTML = `
+    <div class="small">
+      Goal: meet all required objectives while staying within budget. <br/>
+      ${venueSummary}
+    </div>
+  `;
 
   for(const obj of allObjs){
     const ok = checkObjective(obj, totals);
@@ -838,16 +930,18 @@ function renderBasket(totals){
   }
 
   for(const b of totals.basket.sort((a,b)=>a.item.category.localeCompare(b.item.category))){
+    const extra = (b.item.category === "Venue" && b.item.capacity)
+      ? ` <span class="tag">Cap: ${b.item.capacity}</span>` : "";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${b.item.name}</td>
+      <td>${b.item.name}${extra}</td>
       <td>${b.item.category}</td>
       <td class="mono">${b.qty}</td>
       <td class="mono">${peso(b.cost)}</td>
     `;
     basketBody.appendChild(tr);
   }
-  basketNote.textContent = "Submission idea: 3 sentences explaining trade-offs and what you protected.";
+  basketNote.textContent = "Submission idea: 3 sentences explaining trade-offs and why your venue fits the target attendees.";
 }
 
 function renderKpis(totals){
@@ -869,7 +963,6 @@ function renderKpis(totals){
 
   const requiredOk = s.objectives.every(o => checkObjective(o, totals));
   const over = totals.total > s.budget;
-
   const score = computeScore(totals);
 
   const statusClass = over ? "bad" : (requiredOk ? "good" : "warn");
@@ -884,6 +977,13 @@ function renderKpis(totals){
     msg = `You are within budget, but some objectives are not met yet. Fix the checklist before submitting.`;
   }
 
+  const v = getSelectedVenue();
+  const venueNote = v
+    ? (v.capacity >= s.attendeeTarget
+        ? `Venue capacity OK: ${v.capacity} for target ${s.attendeeTarget}.`
+        : `Venue too small: ${v.capacity} for target ${s.attendeeTarget}.`)
+    : `No venue selected.`;
+
   const bannedNote = state.bannedItemIds.size ? `Banned items: <span class="mono">${[...state.bannedItemIds].join(", ")}</span>.` : "No banned items.";
   const infl = state.foodInflationPct > 0 ? `Food inflation active: +${Math.round(state.foodInflationPct*100)}%.` : "No inflation.";
 
@@ -892,13 +992,12 @@ function renderKpis(totals){
       <div>${msg}</div>
       <div class="pill">Score: <span class="mono">${score}</span></div>
     </div>
-    <div class="footer-note">${bannedNote} ${infl}</div>
+    <div class="footer-note">${venueNote} ${bannedNote} ${infl}</div>
   `;
 
   lockPill.textContent = state.isLocked ? "Locked" : "Unlocked";
   surpriseCountPill.textContent = `Surprises: ${state.surpriseHistory.length}`;
 
-  // UI enable/disable
   submitBtn.disabled = state.isLocked;
   surpriseBtn.disabled = state.isLocked;
   scenarioSelect.disabled = state.isLocked;
@@ -940,7 +1039,7 @@ function unlockAll(){
   state.isLocked = false;
   state.submittedAt = null;
   shareCodeInput.value = "";
-  byId("lockPill").textContent = "Unlocked";
+  lockPill.textContent = "Unlocked";
 }
 
 function setScenario(id){
@@ -956,7 +1055,6 @@ function setScenario(id){
 function drawSurprise(){
   if(state.isLocked) return;
 
-  // pick one not yet drawn if possible
   const remaining = SURPRISE_DECK.filter(s => !state.surpriseHistory.includes(s.id));
   const deck = remaining.length ? remaining : SURPRISE_DECK;
   const pick = deck[Math.floor(Math.random() * deck.length)];
@@ -991,18 +1089,16 @@ function base64UrlDecode(b64url){
 function buildSharePayload(totals){
   const s = currentScenarioComputed();
   const payload = {
-    v: 1,
+    v: 2,
     team: (teamNameInput.value || "").trim() || "Unnamed team",
     scenarioId: state.scenarioId,
     submittedAt: new Date().toISOString(),
     locked: true,
 
-    // computed scenario state
     budget: s.budget,
     baseAudience: s.audience,
     attendeeTarget: s.attendeeTarget,
 
-    // surprise modifiers
     budgetDelta: state.budgetDelta,
     attendeeDelta: state.attendeeDelta,
     foodInflationPct: state.foodInflationPct,
@@ -1010,10 +1106,8 @@ function buildSharePayload(totals){
     extraObjectives: state.extraObjectives,
     surpriseHistory: state.surpriseHistory,
 
-    // selections
     selections: state.selections,
 
-    // results
     totals: { total: totals.total, perHead: totals.perHead },
     score: computeScore(totals)
   };
@@ -1028,12 +1122,10 @@ function loadFromShareCode(code){
   const json = base64UrlDecode(code.trim());
   const payload = JSON.parse(json);
 
-  if(!payload || payload.v !== 1) throw new Error("Unsupported code version.");
+  if(!payload || (payload.v !== 1 && payload.v !== 2)) throw new Error("Unsupported code version.");
 
-  // load scenario
   state.scenarioId = payload.scenarioId || SCENARIOS[0].id;
 
-  // load selections and modifiers
   state.selections = payload.selections || {};
   state.budgetDelta = Number(payload.budgetDelta || 0);
   state.attendeeDelta = Number(payload.attendeeDelta || 0);
@@ -1042,14 +1134,12 @@ function loadFromShareCode(code){
   state.extraObjectives = payload.extraObjectives || [];
   state.surpriseHistory = payload.surpriseHistory || [];
 
-  // load team name but do not lock
   teamNameInput.value = payload.team || "";
 
-  unlockAll(); // viewing should be editable unless you choose to lock
+  unlockAll();
   renderScenarioSelect();
   scenarioSelect.value = state.scenarioId;
 
-  // refresh log
   surpriseLog.value = "";
   if(state.surpriseHistory.length){
     surpriseLog.value = `Loaded plan with ${state.surpriseHistory.length} surprise(s): ${state.surpriseHistory.join(", ")}\n`;
@@ -1058,7 +1148,7 @@ function loadFromShareCode(code){
 }
 
 /***********************
- * SUBMIT + LEADERBOARD
+ * LEADERBOARD
  ***********************/
 function getLocalLeaderboard(){
   try{
@@ -1077,7 +1167,6 @@ function addToLeaderboard(entry){
   const lb = getLocalLeaderboard();
   lb.push(entry);
 
-  // sort high score, then lower spend, then newest first
   lb.sort((a,b) => {
     if(b.score !== a.score) return b.score - a.score;
     if(a.totalSpend !== b.totalSpend) return a.totalSpend - b.totalSpend;
@@ -1135,6 +1224,9 @@ async function postToGoogleSheet(entry){
   }
 }
 
+/***********************
+ * SUBMIT
+ ***********************/
 async function submitPlan(){
   if(state.isLocked) return;
 
@@ -1143,16 +1235,13 @@ async function submitPlan(){
   const requiredOk = s.objectives.every(o => checkObjective(o, totals));
   const over = totals.total > s.budget;
 
-  // allow submit anytime, but warn in message
   state.isLocked = true;
   state.submittedAt = new Date().toISOString();
 
-  // generate share payload and code
   const payload = buildSharePayload(totals);
   const code = generateShareCode(payload);
   shareCodeInput.value = code;
 
-  // leaderboard entry
   const entry = {
     ts: Date.now(),
     team: payload.team,
@@ -1170,10 +1259,8 @@ async function submitPlan(){
   addToLeaderboard(entry);
   renderLeaderboard();
 
-  // Try posting to Sheets (optional)
   const postResult = await postToGoogleSheet(entry);
 
-  // Status message update
   const noteParts = [];
   if(requiredOk && !over) noteParts.push("✅ Submitted as PASS");
   else if(over) noteParts.push("Submitted but over budget");
@@ -1184,7 +1271,6 @@ async function submitPlan(){
   else if(postResult && !postResult.ok) noteParts.push("Sheets post failed (local still saved)");
 
   surpriseLog.value += `\n[SUBMIT] ${noteParts.join(" | ")}\n`;
-
   renderAll();
 }
 
@@ -1207,7 +1293,7 @@ function initButtons(){
   surpriseBtn.addEventListener("click", drawSurprise);
   submitBtn.addEventListener("click", submitPlan);
 
-  copyCodeBtn.addEventListener("click", async () => {
+  byId("copyCodeBtn").addEventListener("click", async () => {
     const code = shareCodeInput.value.trim();
     if(!code) return;
     try{
@@ -1218,7 +1304,7 @@ function initButtons(){
     }
   });
 
-  loadBtn.addEventListener("click", () => {
+  byId("loadBtn").addEventListener("click", () => {
     const code = loadCodeInput.value.trim();
     if(!code) return;
     try{
@@ -1257,7 +1343,7 @@ initScenarioSelect();
 initButtons();
 setDefaultScenario();
 renderLeaderboard();
-
+renderAll();
 </script>
 </main>
 </body>
