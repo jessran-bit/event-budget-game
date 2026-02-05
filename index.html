@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Event Budget Builder</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#111a33; --panel2:#0f1730; --text:#e8ecff;
+      --muted:#b7c0ff; --accent:#7c9dff; --good:#2dd4bf; --warn:#fbbf24; --bad:#fb7185;
+      --line:rgba(255,255,255,.12);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:radial-gradient(1000px 500px at 20% 0%, rgba(124,157,255,.22), transparent),
+                 radial-gradient(900px 600px at 90% 10%, rgba(45,212,191,.16), transparent),
+                 var(--bg);
+      color:var(--text);
+    }
+    header{padding:22px 18px 12px; max-width:1200px; margin:0 auto;}
+    h1{margin:0 0 6px; font-size:22px; letter-spacing:.2px}
+    .sub{color:var(--muted); font-size:13px; line-height:1.4}
+    main{max-width:1200px; margin:0 auto; padding:12px 18px 28px;}
+    .grid{
+      display:grid; grid-template-columns: 1.2fr .8fr; gap:14px;
+    }
+    @media (max-width: 900px){ .grid{grid-template-columns:1fr} }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius:16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.22);
+      overflow:hidden;
+    }
+    .card h2{
+      margin:0; padding:14px 14px 10px;
+      font-size:15px; letter-spacing:.2px;
+      border-bottom:1px solid var(--line);
+      background:rgba(0,0,0,.12);
+    }
+    .pad{padding:14px;}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    select, button, input[type="number"], input[type="text"]{
+      background:var(--panel2); color:var(--text);
+      border:1px solid var(--line);
+      border-radius:10px; padding:9px 10px;
+      outline:none;
+    }
+    button{
+      cursor:pointer;
+      background:linear-gradient(180deg, rgba(124,157,255,.28), rgba(124,157,255,.10));
+      border:1px solid rgba(124,157,255,.55);
+    }
+    button.secondary{
+      background:transparent; border:1px solid var(--line); color:var(--text);
+    }
+    button:active{transform: translateY(1px);}
+    .pill{
+      padding:6px 10px; border-radius:999px;
+      border:1px solid var(--line); background:rgba(0,0,0,.10);
+      font-size:12px; color:var(--muted)
+    }
+    .kpi{
+      display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;
+      margin-top:10px;
+    }
+    @media (max-width:700px){ .kpi{grid-template-columns:1fr} }
+    .kpi .box{
+      background:rgba(0,0,0,.14);
+      border:1px solid var(--line);
+      border-radius:14px; padding:12px;
+    }
+    .label{font-size:12px; color:var(--muted); margin-bottom:4px}
+    .value{font-size:18px; font-weight:700}
+    .bar{
+      height:12px; width:100%;
+      background:rgba(255,255,255,.08);
+      border-radius:999px; overflow:hidden;
+      border:1px solid var(--line);
+      margin-top:10px;
+    }
+    .bar > div{height:100%; width:0%;}
+    .status{
+      margin-top:10px; padding:10px 12px;
+      border-radius:14px; border:1px solid var(--line);
+      background:rgba(0,0,0,.16);
+      font-size:13px; line-height:1.35;
+    }
+    .status.good{border-color:rgba(45,212,191,.55)}
+    .status.warn{border-color:rgba(251,191,36,.55)}
+    .status.bad{border-color:rgba(251,113,133,.55)}
+    .list{
+      display:flex; flex-direction:column; gap:8px;
+      max-height: 420px; overflow:auto; padding-right:6px;
+    }
+    .item{
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:rgba(0,0,0,.14);
+      padding:10px;
+      display:grid;
+      grid-template-columns: 20px 1fr auto;
+      gap:10px;
+      align-items:center;
+    }
+    .item .meta{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+    .tag{
+      font-size:11px; color:var(--muted);
+      border:1px solid var(--line);
+      padding:3px 8px; border-radius:999px;
+      background:rgba(255,255,255,.04);
+    }
+    .price{font-weight:700}
+    .qty{display:flex; gap:6px; align-items:center}
+    .qty input{width:70px}
+    table{width:100%; border-collapse:collapse; font-size:13px}
+    th, td{padding:8px 6px; border-bottom:1px solid var(--line); text-align:left}
+    th{color:var(--muted); font-weight:600}
+    .small{font-size:12px; color:var(--muted)}
+    .obj{display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px dashed rgba(255,255,255,.10)}
+    .dot{width:10px; height:10px; border-radius:50%; margin-top:4px; background:rgba(255,255,255,.22)}
+    .dot.good{background:var(--good)}
+    .dot.bad{background:var(--bad)}
+    .dot.warn{background:var(--warn)}
+    .footer-note{margin-top:10px; color:var(--muted); font-size:12px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .topline{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap}
+  </style>
+</head>
+<body>
+<header>
+  <div class="topline">
+    <div>
+      <h1>Event Budget Builder</h1>
+      <div class="sub">
+        Select items under a fixed budget and meet the objectives. Great for 8–12 minute pair work.
+      </div>
+    </div>
+    <div class="row">
+      <span class="pill">Runs on GitHub Pages</span>
+      <span class="pill">No login needed</span>
+    </div>
+  </div>
+</header>
+
+<main class="grid">
+  <section class="card">
+    <h2>1) Choose a scenario</h2>
+    <div class="pad">
+      <div class="row">
+        <label class="small">Scenario</label>
+        <select id="scenarioSelect"></select>
+        <button id="randomBtn" class="secondary" title="Pick a random scenario">Random</button>
+        <button id="resetBtn" class="secondary" title="Clear all selections">Reset</button>
+      </div>
+
+      <div class="kpi">
+        <div class="box">
+          <div class="label">Budget</div>
+          <div class="value" id="budgetDisplay">₱0</div>
+          <div class="small" id="audienceDisplay"></div>
+        </div>
+        <div class="box">
+          <div class="label">Total spend</div>
+          <div class="value" id="spendDisplay">₱0</div>
+          <div class="small" id="perHeadDisplay"></div>
+        </div>
+        <div class="box">
+          <div class="label">Remaining</div>
+          <div class="value" id="remainingDisplay">₱0</div>
+          <div class="small">Over-budget turns red</div>
+        </div>
+      </div>
+
+      <div class="bar" aria-label="budget progress">
+        <div id="barFill"></div>
+      </div>
+
+      <div id="statusBox" class="status warn"></div>
+    </div>
+  </section>
+
+  <aside class="card">
+    <h2>2) Objectives checklist</h2>
+    <div class="pad" id="objectivesBox"></div>
+    <div class="pad" style="padding-top:0">
+      <div class="footer-note">
+        Tip: You can screen-share this and let groups negotiate trade-offs.
+      </div>
+    </div>
+  </aside>
+
+  <section class="card" style="grid-column:1 / -1">
+    <h2>3) Select items</h2>
+    <div class="pad">
+      <div class="row" style="margin-bottom:10px">
+        <input id="filterInput" type="text" placeholder="Filter items (e.g., food, venue, safety)" />
+        <span class="pill">Currency: PHP</span>
+        <span class="pill">Quantities allowed</span>
+      </div>
+
+      <div class="list" id="itemsList"></div>
+
+      <div style="margin-top:14px">
+        <h3 style="margin:0 0 8px; font-size:14px; color:var(--muted)">Your basket</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Category</th>
+              <th class="mono">Qty</th>
+              <th class="mono">Cost</th>
+            </tr>
+          </thead>
+          <tbody id="basketBody"></tbody>
+        </table>
+        <div class="small" id="basketNote" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  /***********************
+   * EDIT HERE (DATA)
+   ***********************/
+  const ITEMS = [
+    // VENUE / LOGISTICS
+    { id:"venue_classroom", name:"Campus classroom (half day)", category:"Venue", cost: 2500, tags:["venue","budget"] },
+    { id:"venue_auditorium", name:"Auditorium rental (half day)", category:"Venue", cost: 12000, tags:["venue"] },
+    { id:"venue_hotel", name:"Hotel function room (half day)", category:"Venue", cost: 35000, tags:["venue","premium"] },
+    { id:"sound_basic", name:"Basic sound system", category:"Production", cost: 5000, tags:["audio"] },
+    { id:"lights_basic", name:"Basic lighting", category:"Production", cost: 4500, tags:["lights"] },
+    { id:"stage_backdrop", name:"Simple stage backdrop", category:"Production", cost: 3500, tags:["branding"] },
+    { id:"photobooth", name:"Photo booth (2 hrs)", category:"Engagement", cost: 8000, tags:["experience"] },
+
+    // FOOD
+    { id:"snacks", name:"Snack pack per person", category:"Food", cost: 80, perHead:true, tags:["food"] },
+    { id:"lunch", name:"Lunch meal per person", category:"Food", cost: 180, perHead:true, tags:["food"] },
+    { id:"water", name:"Bottled water per person", category:"Food", cost: 20, perHead:true, tags:["basic"] },
+
+    // STAFFING / SAFETY
+    { id:"marshal", name:"Event marshal (per marshal)", category:"Staffing", cost: 900, tags:["staff"] },
+    { id:"first_aid", name:"First aid station (basic kit + medic)", category:"Safety", cost: 4500, tags:["safety","required"] },
+    { id:"security", name:"Security guard (per guard)", category:"Safety", cost: 1200, tags:["safety"] },
+
+    // ACCESSIBILITY / INCLUSION
+    { id:"signage", name:"Wayfinding signage set", category:"Accessibility", cost: 1500, tags:["access"] },
+    { id:"ramp", name:"Temporary ramp rental", category:"Accessibility", cost: 5000, tags:["access"] },
+    { id:"interpreter", name:"Sign language interpreter (2 hrs)", category:"Accessibility", cost: 6000, tags:["access","inclusion"] },
+
+    // MARKETING / DOCUMENTATION
+    { id:"pubmat", name:"Digital pubmats (basic set)", category:"Marketing", cost: 1800, tags:["promo"] },
+    { id:"ads", name:"Boosted social ads", category:"Marketing", cost: 4000, tags:["promo"] },
+    { id:"photog", name:"Photographer (half day)", category:"Documentation", cost: 6500, tags:["photo"] },
+    { id:"videog", name:"Videographer (half day)", category:"Documentation", cost: 9000, tags:["video"] },
+
+    // MATERIALS
+    { id:"id_lanyards", name:"ID + lanyard per person", category:"Materials", cost: 25, perHead:true, tags:["ops"] },
+    { id:"certs", name:"Certificates (per person)", category:"Materials", cost: 10, perHead:true, tags:["ops"] },
+    { id:"prizes", name:"Prizes set (small)", category:"Engagement", cost: 2000, tags:["engagement"] },
+    { id:"prizes_big", name:"Prizes set (bigger)", category:"Engagement", cost: 6000, tags:["engagement"] },
+  ];
+
+  // Objectives are scenario-specific constraints.
+  // You can add/edit scenarios freely.
+  const SCENARIOS = [
+    {
+      id:"gender_equality_fundraiser",
+      title:"Fundraising Event for Gender Equality (Campus-based)",
+      budget: 45000,
+      audience: 120,
+      objectives: [
+        { id:"must_venue", label:"Include a venue option", type:"categoryMin", category:"Venue", min:1 },
+        { id:"must_food", label:"Provide at least 1 food/water item per attendee", type:"perHeadMinAny", categories:["Food"], minPerHead:1 },
+        { id:"must_marketing", label:"Include at least 1 marketing item", type:"categoryMin", category:"Marketing", min:1 },
+        { id:"must_safety", label:"Include at least 1 safety item", type:"categoryMin", category:"Safety", min:1 },
+        { id:"must_access", label:"Include at least 1 accessibility item", type:"categoryMin", category:"Accessibility", min:1 },
+        { id:"value_goal", label:"Keep cost per head at or below ₱380", type:"perHeadMax", max:380 },
+      ],
+      bonus: [
+        { id:"bonus_doc", label:"Bonus: include documentation (photo or video)", type:"categoryMin", category:"Documentation", min:1, points: 2 },
+        { id:"bonus_engage", label:"Bonus: include at least 1 engagement item", type:"categoryMin", category:"Engagement", min:1, points: 1 },
+      ]
+    },
+    {
+      id:"innovation_pitch_night",
+      title:"Innovation Pitch Night (Small crowd, high production)",
+      budget: 60000,
+      audience: 80,
+      objectives: [
+        { id:"must_venue", label:"Include a venue option", type:"categoryMin", category:"Venue", min:1 },
+        { id:"must_prod", label:"Include at least 2 production items", type:"categoriesCountMin", categories:["Production"], min:2 },
+        { id:"must_safety", label:"Include at least 1 safety item", type:"categoryMin", category:"Safety", min:1 },
+        { id:"must_marketing", label:"Include at least 1 marketing item", type:"categoryMin", category:"Marketing", min:1 },
+        { id:"value_goal", label:"Keep cost per head at or below ₱850", type:"perHeadMax", max:850 },
+      ],
+      bonus: [
+        { id:"bonus_access", label:"Bonus: add accessibility support", type:"categoryMin", category:"Accessibility", min:1, points: 2 },
+      ]
+    },
+    {
+      id:"community_health_fair",
+      title:"Community Fair (More attendees, essentials first)",
+      budget: 55000,
+      audience: 200,
+      objectives: [
+        { id:"must_venue", label:"Include a venue option", type:"categoryMin", category:"Venue", min:1 },
+        { id:"must_water", label:"Include water per attendee", type:"mustIncludeItem", itemId:"water" },
+        { id:"must_safety", label:"Include first aid station", type:"mustIncludeItem", itemId:"first_aid" },
+        { id:"must_signage", label:"Include wayfinding signage", type:"mustIncludeItem", itemId:"signage" },
+        { id:"value_goal", label:"Keep cost per head at or below ₱275", type:"perHeadMax", max:275 },
+      ],
+      bonus: [
+        { id:"bonus_marketing", label:"Bonus: include marketing", type:"categoryMin", category:"Marketing", min:1, points: 1 },
+      ]
+    },
+  ];
+
+  /***********************
+   * APP LOGIC
+   ***********************/
+  const peso = n => "₱" + Math.round(n).toLocaleString("en-PH");
+  const byId = (id) => document.getElementById(id);
+
+  const scenarioSelect = byId("scenarioSelect");
+  const itemsList = byId("itemsList");
+  const basketBody = byId("basketBody");
+  const objectivesBox = byId("objectivesBox");
+  const statusBox = byId("statusBox");
+  const filterInput = byId("filterInput");
+
+  const budgetDisplay = byId("budgetDisplay");
+  const spendDisplay = byId("spendDisplay");
+  const remainingDisplay = byId("remainingDisplay");
+  const perHeadDisplay = byId("perHeadDisplay");
+  const audienceDisplay = byId("audienceDisplay");
+  const barFill = byId("barFill");
+  const basketNote = byId("basketNote");
+
+  let state = {
+    scenarioId: SCENARIOS[0].id,
+    // selections: { [itemId]: { checked:boolean, qty:number } }
+    selections: {}
+  };
+
+  function currentScenario(){
+    return SCENARIOS.find(s => s.id === state.scenarioId) || SCENARIOS[0];
+  }
+
+  function getSelection(itemId){
+    if(!state.selections[itemId]){
+      state.selections[itemId] = { checked:false, qty:1 };
+    }
+    return state.selections[itemId];
+  }
+
+  function calcTotals(){
+    const s = currentScenario();
+    let total = 0;
+    let basket = [];
+    for(const item of ITEMS){
+      const sel = getSelection(item.id);
+      if(!sel.checked) continue;
+      const qty = Math.max(1, Number(sel.qty || 1));
+      const cost = item.perHead ? item.cost * s.audience * qty : item.cost * qty;
+      total += cost;
+      basket.push({ item, qty, cost });
+    }
+    const perHead = s.audience > 0 ? total / s.audience : total;
+    return { total, perHead, basket };
+  }
+
+  function countCategory(cat){
+    let c = 0;
+    for(const item of ITEMS){
+      const sel = getSelection(item.id);
+      if(sel.checked && item.category === cat) c += 1;
+    }
+    return c;
+  }
+
+  function countCategories(categories){
+    let c = 0;
+    for(const item of ITEMS){
+      const sel = getSelection(item.id);
+      if(sel.checked && categories.includes(item.category)) c += 1;
+    }
+    return c;
+  }
+
+  function hasItem(itemId){
+    return !!getSelection(itemId).checked;
+  }
+
+  function countPerHeadAny(categories){
+    // counts how many per-head line items (from those categories) are selected
+    let c = 0;
+    for(const item of ITEMS){
+      const sel = getSelection(item.id);
+      if(!sel.checked) continue;
+      if(categories.includes(item.category) && item.perHead) c += 1;
+    }
+    return c;
+  }
+
+  function checkObjective(obj, totals){
+    const s = currentScenario();
+    switch(obj.type){
+      case "categoryMin":
+        return countCategory(obj.category) >= obj.min;
+      case "categoriesCountMin":
+        return countCategories(obj.categories) >= obj.min;
+      case "mustIncludeItem":
+        return hasItem(obj.itemId);
+      case "perHeadMax":
+        return totals.perHead <= obj.max;
+      case "perHeadMinAny":
+        return countPerHeadAny(obj.categories) >= obj.minPerHead;
+      default:
+        return false;
+    }
+  }
+
+  function renderScenarioSelect(){
+    scenarioSelect.innerHTML = "";
+    for(const s of SCENARIOS){
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = s.title;
+      scenarioSelect.appendChild(opt);
+    }
+    scenarioSelect.value = state.scenarioId;
+  }
+
+  function itemMatchesFilter(item, q){
+    if(!q) return true;
+    q = q.toLowerCase().trim();
+    const hay = [item.name, item.category, ...(item.tags||[])].join(" ").toLowerCase();
+    return hay.includes(q);
+  }
+
+  function renderItems(){
+    const q = filterInput.value || "";
+    itemsList.innerHTML = "";
+    const s = currentScenario();
+
+    for(const item of ITEMS){
+      if(!itemMatchesFilter(item, q)) continue;
+
+      const sel = getSelection(item.id);
+
+      const row = document.createElement("div");
+      row.className = "item";
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = sel.checked;
+      cb.addEventListener("change", () => {
+        sel.checked = cb.checked;
+        renderAll();
+      });
+
+      const mid = document.createElement("div");
+      const title = document.createElement("div");
+      title.innerHTML = `<strong>${item.name}</strong> <span class="tag">${item.category}</span>`;
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      const tags = (item.tags||[]).slice(0,4).map(t => `<span class="tag">${t}</span>`).join("");
+      const priceText = item.perHead ? `${peso(item.cost)} per attendee` : `${peso(item.cost)}`;
+      meta.innerHTML = `<span class="price">${priceText}</span>${tags ? " " + tags : ""}`;
+      mid.appendChild(title);
+      mid.appendChild(meta);
+
+      const right = document.createElement("div");
+      right.className = "qty";
+      const qty = document.createElement("input");
+      qty.type = "number";
+      qty.min = "1";
+      qty.value = sel.qty;
+      qty.title = "Quantity";
+      qty.addEventListener("input", () => {
+        sel.qty = Math.max(1, Number(qty.value || 1));
+        renderAll();
+      });
+
+      const hint = document.createElement("div");
+      hint.className = "small";
+      hint.style.textAlign = "right";
+      hint.style.minWidth = "140px";
+      hint.textContent = item.perHead ? `x audience (${s.audience})` : "x qty";
+
+      right.appendChild(qty);
+      right.appendChild(hint);
+
+      row.appendChild(cb);
+      row.appendChild(mid);
+      row.appendChild(right);
+
+      itemsList.appendChild(row);
+    }
+  }
+
+  function renderObjectives(totals){
+    const s = currentScenario();
+    const allObjs = [...s.objectives];
+    objectivesBox.innerHTML = "";
+
+    const head = document.createElement("div");
+    head.innerHTML = `<div class="small">Goal: build an event plan that meets all required objectives.</div>`;
+    objectivesBox.appendChild(head);
+
+    for(const obj of allObjs){
+      const ok = checkObjective(obj, totals);
+      const el = document.createElement("div");
+      el.className = "obj";
+      el.innerHTML = `
+        <div class="dot ${ok ? "good" : "bad"}"></div>
+        <div>
+          <div>${obj.label}</div>
+          <div class="small">${ok ? "Met" : "Not met yet"}</div>
+        </div>
+      `;
+      objectivesBox.appendChild(el);
+    }
+
+    if(s.bonus?.length){
+      const sep = document.createElement("div");
+      sep.style.marginTop = "10px";
+      sep.innerHTML = `<div class="small"><strong>Bonus points</strong></div>`;
+      objectivesBox.appendChild(sep);
+
+      for(const obj of s.bonus){
+        const ok = checkObjective(obj, totals);
+        const el = document.createElement("div");
+        el.className = "obj";
+        el.innerHTML = `
+          <div class="dot ${ok ? "good" : "warn"}"></div>
+          <div>
+            <div>${obj.label} <span class="tag">+${obj.points} pt</span></div>
+            <div class="small">${ok ? "Achieved" : "Optional"}</div>
+          </div>
+        `;
+        objectivesBox.appendChild(el);
+      }
+    }
+  }
+
+  function renderBasket(totals){
+    basketBody.innerHTML = "";
+    if(totals.basket.length === 0){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="4" class="small">No items selected yet.</td>`;
+      basketBody.appendChild(tr);
+      basketNote.textContent = "";
+      return;
+    }
+
+    for(const b of totals.basket.sort((a,b)=>a.item.category.localeCompare(b.item.category))){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${b.item.name}</td>
+        <td>${b.item.category}</td>
+        <td class="mono">${b.qty}</td>
+        <td class="mono">${peso(b.cost)}</td>
+      `;
+      basketBody.appendChild(tr);
+    }
+    basketNote.textContent = "Tip: Ask groups to justify one cut they made and one value they protected.";
+  }
+
+  function renderKpis(totals){
+    const s = currentScenario();
+    const remaining = s.budget - totals.total;
+
+    budgetDisplay.textContent = peso(s.budget);
+    audienceDisplay.textContent = `Audience: ${s.audience} pax`;
+
+    spendDisplay.textContent = peso(totals.total);
+    perHeadDisplay.textContent = `Per head: ${peso(totals.perHead)}`;
+
+    remainingDisplay.textContent = peso(Math.abs(remaining)) + (remaining >= 0 ? "" : " over");
+    remainingDisplay.style.color = remaining >= 0 ? "var(--good)" : "var(--bad)";
+
+    const pct = Math.min(160, Math.max(0, (totals.total / s.budget) * 100));
+    barFill.style.width = pct + "%";
+    barFill.style.background = remaining >= 0 ? "var(--good)" : "var(--bad)";
+
+    const requiredOk = s.objectives.every(o => checkObjective(o, totals));
+    const bonusPoints = (s.bonus||[]).reduce((sum, b) => sum + (checkObjective(b, totals) ? (b.points||0) : 0), 0);
+
+    const over = totals.total > s.budget;
+    const statusClass = over ? "bad" : (requiredOk ? "good" : "warn");
+    statusBox.className = `status ${statusClass}`;
+
+    let msg = "";
+    if(over){
+      msg = `You are over budget by <strong>${peso(totals.total - s.budget)}</strong>. Cut items or downgrade options.`;
+    } else if(requiredOk){
+      msg = `✅ You meet all required objectives and stay within budget. Bonus points earned: <strong>${bonusPoints}</strong>.`;
+    } else {
+      msg = `You are within budget, but some objectives are not met yet. Fix the checklist before you submit.`;
+    }
+
+    // Simple score: base 10 if meet required & within budget, + bonus, minus penalty for overspend
+    let score = 0;
+    if(!over && requiredOk) score = 10 + bonusPoints;
+    else if(!over) score = Math.max(0, 6 + bonusPoints - Math.round((s.objectives.filter(o=>!checkObjective(o, totals)).length)));
+    else score = Math.max(0, 3 + bonusPoints - Math.ceil((totals.total - s.budget) / 5000));
+
+    statusBox.innerHTML = `
+      <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap">
+        <div>${msg}</div>
+        <div class="pill">Score: <span class="mono">${score}</span></div>
+      </div>
+      <div class="footer-note">
+        Submission idea: screenshot the checklist + basket, then write 3–5 sentences explaining trade-offs.
+      </div>
+    `;
+  }
+
+  function renderAll(){
+    const totals = calcTotals();
+    renderItems();
+    renderObjectives(totals);
+    renderBasket(totals);
+    renderKpis(totals);
+  }
+
+  function resetSelections(){
+    state.selections = {};
+    renderAll();
+  }
+
+  function setScenario(id){
+    state.scenarioId = id;
+    resetSelections();
+  }
+
+  // init
+  renderScenarioSelect();
+  scenarioSelect.addEventListener("change", (e) => setScenario(e.target.value));
+  byId("resetBtn").addEventListener("click", resetSelections);
+  byId("randomBtn").addEventListener("click", () => {
+    const pick = SCENARIOS[Math.floor(Math.random() * SCENARIOS.length)];
+    scenarioSelect.value = pick.id;
+    setScenario(pick.id);
+  });
+  filterInput.addEventListener("input", renderItems);
+
+  // default scenario
+  setScenario(state.scenarioId);
+</script>
+</body>
+</html>
