@@ -285,60 +285,49 @@
 /***********************
  * OPTIONAL: Google Sheets endpoint
  ***********************/
-const GOOGLE_SHEET_WEBAPP_URL = ""; // Example: "https://script.google.com/macros/s/XXXXX/exec";
+const GOOGLE_SHEET_WEBAPP_URL = "";
 
 /***********************
- * DATA: ITEMS
- * Venue items now have a CAPACITY (max pax).
- * The game enforces:
- * 1) exactly 1 venue selected
- * 2) selected venue capacity must be >= target attendees
+ * ITEMS (venues have capacity)
  ***********************/
 const ITEMS = [
-  // VENUE (each with capacity)
   { id:"venue_classroom", name:"Campus classroom (half day)", category:"Venue", cost: 2500, capacity: 60, tags:["venue","budget"], xp: 1 },
-  { id:"venue_auditorium", name:"Auditorium rental (half day)", category:"Venue", cost: 12000, capacity: 180, tags:["venue"], xp: 2 },
   { id:"venue_hotel", name:"Hotel function room (half day)", category:"Venue", cost: 35000, capacity: 120, tags:["venue","premium"], xp: 3 },
+  { id:"venue_auditorium", name:"Auditorium rental (half day)", category:"Venue", cost: 12000, capacity: 180, tags:["venue"], xp: 2 },
   { id:"venue_gym", name:"Gym / covered court (half day)", category:"Venue", cost: 18000, capacity: 350, tags:["venue","large"], xp: 2 },
 
-  // PRODUCTION / ENGAGEMENT
   { id:"sound_basic", name:"Basic sound system", category:"Production", cost: 5000, tags:["audio"], xp: 1 },
   { id:"lights_basic", name:"Basic lighting", category:"Production", cost: 4500, tags:["lights"], xp: 1 },
   { id:"stage_backdrop", name:"Simple stage backdrop", category:"Production", cost: 3500, tags:["branding"], xp: 1 },
   { id:"photobooth", name:"Photo booth (2 hrs)", category:"Engagement", cost: 8000, tags:["experience"], xp: 3 },
 
-  // FOOD (per attendee)
   { id:"snacks", name:"Snack pack per attendee", category:"Food", cost: 80, perHead:true, tags:["food"], xp: 1 },
   { id:"lunch", name:"Lunch meal per attendee", category:"Food", cost: 180, perHead:true, tags:["food"], xp: 2 },
   { id:"water", name:"Bottled water per attendee", category:"Food", cost: 20, perHead:true, tags:["basic"], xp: 0 },
 
-  // STAFFING / SAFETY
   { id:"marshal", name:"Event marshal (per marshal)", category:"Staffing", cost: 900, tags:["staff"], xp: 0 },
   { id:"first_aid", name:"First aid station (basic kit + medic)", category:"Safety", cost: 4500, tags:["safety","required"], xp: 0 },
   { id:"security", name:"Security guard (per guard)", category:"Safety", cost: 1200, tags:["safety"], xp: 0 },
 
-  // ACCESSIBILITY / INCLUSION
   { id:"signage", name:"Wayfinding signage set", category:"Accessibility", cost: 1500, tags:["access"], xp: 1 },
   { id:"ramp", name:"Temporary ramp rental", category:"Accessibility", cost: 5000, tags:["access"], xp: 2 },
   { id:"interpreter", name:"Sign language interpreter (2 hrs)", category:"Accessibility", cost: 6000, tags:["access","inclusion"], xp: 3 },
 
-  // MARKETING / DOCUMENTATION
   { id:"pubmat", name:"Digital pubmats (basic set)", category:"Marketing", cost: 1800, tags:["promo"], xp: 1 },
   { id:"ads", name:"Boosted social ads", category:"Marketing", cost: 4000, tags:["promo"], xp: 2 },
   { id:"photog", name:"Photographer (half day)", category:"Documentation", cost: 6500, tags:["photo"], xp: 1 },
   { id:"videog", name:"Videographer (half day)", category:"Documentation", cost: 9000, tags:["video"], xp: 2 },
 
-  // MATERIALS (per attendee)
   { id:"id_lanyards", name:"ID + lanyard per attendee", category:"Materials", cost: 25, perHead:true, tags:["ops"], xp: 0 },
   { id:"certs", name:"Certificates (per attendee)", category:"Materials", cost: 10, perHead:true, tags:["ops"], xp: 0 },
 
-  // ENGAGEMENT
   { id:"prizes", name:"Prizes set (small)", category:"Engagement", cost: 2000, tags:["engagement"], xp: 1 },
   { id:"prizes_big", name:"Prizes set (bigger)", category:"Engagement", cost: 6000, tags:["engagement"], xp: 2 },
 ];
 
 /***********************
- * DATA: SCENARIOS
+ * 6 SCENARIOS
+ * Note: submit allowed even if objectives not met; scoring applies deductions.
  ***********************/
 const SCENARIOS = [
   {
@@ -348,28 +337,16 @@ const SCENARIOS = [
     baseAudience: 120,
     baseAttendeeTarget: 150,
     objectives: [
-      { id:"target_attendees", label:"Plan for at least 150 attendees", type:"attendeesMin", min:150 },
-
-      // NEW: Venue rules
       { id:"venue_exactly_one", label:"Select exactly 1 venue", type:"venueExactlyOne" },
       { id:"venue_capacity", label:"Selected venue must fit your target attendees", type:"venueCapacityMin" },
-
       { id:"must_water", label:"Provide water per attendee", type:"mustIncludeItem", itemId:"water" },
       { id:"must_food_choice", label:"Provide either snacks or lunch per attendee", type:"mustIncludeAnyItems", itemIds:["snacks","lunch"] },
-
-      { id:"must_ids", label:"Provide IDs (lanyards) per attendee", type:"mustIncludeItem", itemId:"id_lanyards" },
-
       { id:"must_firstaid", label:"Include first aid station", type:"mustIncludeItem", itemId:"first_aid" },
-      { id:"must_security", label:"Include at least 1 security guard", type:"itemQtyMin", itemId:"security", minQty:1 },
-      { id:"marshal_ratio", label:"Staffing ratio: at least 1 marshal per 50 attendees", type:"ratioMin", itemId:"marshal", per:50 },
-
+      { id:"marshal_ratio", label:"Staffing ratio: 1 marshal per 50 attendees", type:"ratioMin", itemId:"marshal", per:50 },
       { id:"must_access", label:"Include at least 1 accessibility item", type:"categoryMin", category:"Accessibility", min:1 },
-
       { id:"must_marketing", label:"Include at least 1 marketing item", type:"categoryMin", category:"Marketing", min:1 },
       { id:"must_doc", label:"Include documentation (photo or video)", type:"categoryMin", category:"Documentation", min:1 },
-
-      { id:"xp_min", label:"Meet minimum experience points (at least 6 XP)", type:"xpMin", min:6 },
-
+      { id:"xp_min", label:"Meet minimum experience points (≥ 6 XP)", type:"xpMin", min:6 },
       { id:"value_goal", label:"Keep cost per head at or below ₱320", type:"perHeadMax", max:320 },
     ],
     bonus: [
@@ -377,33 +354,116 @@ const SCENARIOS = [
       { id:"bonus_photobooth", label:"Bonus: include photo booth", type:"mustIncludeItem", itemId:"photobooth", points: 1 },
     ]
   },
+
   {
     id:"innovation_pitch_night",
-    title:"Innovation Pitch Night (Smaller crowd, premium feel)",
+    title:"Innovation Pitch Night (Premium feel)",
     baseBudget: 60000,
     baseAudience: 80,
     baseAttendeeTarget: 100,
     objectives: [
-      { id:"target_attendees", label:"Plan for at least 100 attendees", type:"attendeesMin", min:100 },
-
-      // NEW: Venue rules
       { id:"venue_exactly_one", label:"Select exactly 1 venue", type:"venueExactlyOne" },
       { id:"venue_capacity", label:"Selected venue must fit your target attendees", type:"venueCapacityMin" },
-
       { id:"must_prod", label:"Include at least 2 production items", type:"categoriesCountMin", categories:["Production"], min:2 },
       { id:"must_doc", label:"Include documentation (photo or video)", type:"categoryMin", category:"Documentation", min:1 },
       { id:"must_marketing", label:"Include at least 1 marketing item", type:"categoryMin", category:"Marketing", min:1 },
-
       { id:"must_water", label:"Provide water per attendee", type:"mustIncludeItem", itemId:"water" },
-
       { id:"must_firstaid", label:"Include first aid station", type:"mustIncludeItem", itemId:"first_aid" },
-      { id:"marshal_ratio", label:"Staffing ratio: at least 1 marshal per 40 attendees", type:"ratioMin", itemId:"marshal", per:40 },
-
-      { id:"xp_min", label:"Meet minimum experience points (at least 7 XP)", type:"xpMin", min:7 },
+      { id:"marshal_ratio", label:"Staffing ratio: 1 marshal per 40 attendees", type:"ratioMin", itemId:"marshal", per:40 },
+      { id:"xp_min", label:"Meet minimum experience points (≥ 7 XP)", type:"xpMin", min:7 },
       { id:"value_goal", label:"Keep cost per head at or below ₱650", type:"perHeadMax", max:650 },
     ],
     bonus: [
       { id:"bonus_access", label:"Bonus: add accessibility support", type:"categoryMin", category:"Accessibility", min:1, points: 2 },
+    ]
+  },
+
+  {
+    id:"career_fair",
+    title:"Career Fair (High attendance, essentials first)",
+    baseBudget: 70000,
+    baseAudience: 200,
+    baseAttendeeTarget: 250,
+    objectives: [
+      { id:"venue_exactly_one", label:"Select exactly 1 venue", type:"venueExactlyOne" },
+      { id:"venue_capacity", label:"Selected venue must fit your target attendees", type:"venueCapacityMin" },
+      { id:"must_signage", label:"Include wayfinding signage", type:"mustIncludeItem", itemId:"signage" },
+      { id:"must_firstaid", label:"Include first aid station", type:"mustIncludeItem", itemId:"first_aid" },
+      { id:"must_security", label:"Include at least 2 security guards", type:"itemQtyMin", itemId:"security", minQty:2 },
+      { id:"marshal_ratio", label:"Staffing ratio: 1 marshal per 60 attendees", type:"ratioMin", itemId:"marshal", per:60 },
+      { id:"must_water", label:"Provide water per attendee", type:"mustIncludeItem", itemId:"water" },
+      { id:"xp_min", label:"Meet minimum experience points (≥ 5 XP)", type:"xpMin", min:5 },
+      { id:"value_goal", label:"Keep cost per head at or below ₱330", type:"perHeadMax", max:330 },
+    ],
+    bonus: [
+      { id:"bonus_marketing", label:"Bonus: include marketing", type:"categoryMin", category:"Marketing", min:1, points: 1 },
+      { id:"bonus_doc", label:"Bonus: include documentation", type:"categoryMin", category:"Documentation", min:1, points: 1 },
+    ]
+  },
+
+  {
+    id:"student_org_concert",
+    title:"Student Org Mini-Concert (Production heavy)",
+    baseBudget: 90000,
+    baseAudience: 250,
+    baseAttendeeTarget: 300,
+    objectives: [
+      { id:"venue_exactly_one", label:"Select exactly 1 venue", type:"venueExactlyOne" },
+      { id:"venue_capacity", label:"Selected venue must fit your target attendees", type:"venueCapacityMin" },
+      { id:"must_prod", label:"Include at least 3 production items (yes, 3)", type:"categoriesCountMin", categories:["Production"], min:3 },
+      { id:"must_security", label:"Include at least 3 security guards", type:"itemQtyMin", itemId:"security", minQty:3 },
+      { id:"must_firstaid", label:"Include first aid station", type:"mustIncludeItem", itemId:"first_aid" },
+      { id:"marshal_ratio", label:"Staffing ratio: 1 marshal per 70 attendees", type:"ratioMin", itemId:"marshal", per:70 },
+      { id:"xp_min", label:"Meet minimum experience points (≥ 8 XP)", type:"xpMin", min:8 },
+      { id:"value_goal", label:"Keep cost per head at or below ₱420", type:"perHeadMax", max:420 },
+    ],
+    bonus: [
+      { id:"bonus_photobooth", label:"Bonus: include photo booth", type:"mustIncludeItem", itemId:"photobooth", points: 1 },
+      { id:"bonus_video", label:"Bonus: include videographer", type:"mustIncludeItem", itemId:"videog", points: 1 },
+    ]
+  },
+
+  {
+    id:"research_symposium",
+    title:"Research Symposium (Formal + documentation)",
+    baseBudget: 55000,
+    baseAudience: 90,
+    baseAttendeeTarget: 120,
+    objectives: [
+      { id:"venue_exactly_one", label:"Select exactly 1 venue", type:"venueExactlyOne" },
+      { id:"venue_capacity", label:"Selected venue must fit your target attendees", type:"venueCapacityMin" },
+      { id:"must_doc", label:"Include documentation (photo or video)", type:"categoryMin", category:"Documentation", min:1 },
+      { id:"must_prod", label:"Include at least 1 production item", type:"categoriesCountMin", categories:["Production"], min:1 },
+      { id:"must_certs", label:"Provide certificates per attendee", type:"mustIncludeItem", itemId:"certs" },
+      { id:"must_water", label:"Provide water per attendee", type:"mustIncludeItem", itemId:"water" },
+      { id:"must_firstaid", label:"Include first aid station", type:"mustIncludeItem", itemId:"first_aid" },
+      { id:"xp_min", label:"Meet minimum experience points (≥ 6 XP)", type:"xpMin", min:6 },
+      { id:"value_goal", label:"Keep cost per head at or below ₱520", type:"perHeadMax", max:520 },
+    ],
+    bonus: [
+      { id:"bonus_access", label:"Bonus: add accessibility support", type:"categoryMin", category:"Accessibility", min:1, points: 2 },
+    ]
+  },
+
+  {
+    id:"community_outreach",
+    title:"Community Outreach Day (Inclusive, low cost)",
+    baseBudget: 50000,
+    baseAudience: 140,
+    baseAttendeeTarget: 180,
+    objectives: [
+      { id:"venue_exactly_one", label:"Select exactly 1 venue", type:"venueExactlyOne" },
+      { id:"venue_capacity", label:"Selected venue must fit your target attendees", type:"venueCapacityMin" },
+      { id:"must_access", label:"Include at least 2 accessibility items", type:"categoryMin", category:"Accessibility", min:2 },
+      { id:"must_water", label:"Provide water per attendee", type:"mustIncludeItem", itemId:"water" },
+      { id:"must_food_choice", label:"Provide snacks OR lunch per attendee", type:"mustIncludeAnyItems", itemIds:["snacks","lunch"] },
+      { id:"must_firstaid", label:"Include first aid station", type:"mustIncludeItem", itemId:"first_aid" },
+      { id:"marshal_ratio", label:"Staffing ratio: 1 marshal per 50 attendees", type:"ratioMin", itemId:"marshal", per:50 },
+      { id:"value_goal", label:"Keep cost per head at or below ₱300", type:"perHeadMax", max:300 },
+    ],
+    bonus: [
+      { id:"bonus_marketing", label:"Bonus: include marketing", type:"categoryMin", category:"Marketing", min:1, points: 1 },
+      { id:"bonus_doc", label:"Bonus: include documentation", type:"categoryMin", category:"Documentation", min:1, points: 1 },
     ]
   }
 ];
@@ -412,62 +472,14 @@ const SCENARIOS = [
  * SURPRISES
  ***********************/
 const SURPRISE_DECK = [
-  {
-    id:"sponsor_pulls_out",
-    title:"Sponsor pulled out",
-    text:"Sponsor pulled out. Budget reduced by ₱7,500.",
-    apply: (st) => { st.budgetDelta -= 7500; }
-  },
-  {
-    id:"sponsor_added",
-    title:"New sponsor joined",
-    text:"New sponsor joined. Budget increased by ₱6,000 but you must include marketing.",
-    apply: (st) => {
-      st.budgetDelta += 6000;
-      st.extraObjectives.push({ id:"surp_mkt", label:"Surprise: include at least 1 marketing item", type:"categoryMin", category:"Marketing", min:1 });
-    }
-  },
-  {
-    id:"attendance_spike",
-    title:"Attendance spike",
-    text:"Attendance increased by 30. Update target attendees.",
-    apply: (st) => { st.attendeeDelta += 30; }
-  },
-  {
-    id:"venue_unavailable",
-    title:"Venue unavailable",
-    text:"Auditorium is unavailable. You cannot select it.",
-    apply: (st) => { st.bannedItemIds.add("venue_auditorium"); }
-  },
-  {
-    id:"safety_notice",
-    title:"Safety advisory",
-    text:"Safety advisory: You must add at least 1 security guard and first aid.",
-    apply: (st) => {
-      st.extraObjectives.push({ id:"surp_sec", label:"Surprise: include at least 1 security guard", type:"itemQtyMin", itemId:"security", minQty:1 });
-      st.extraObjectives.push({ id:"surp_fa", label:"Surprise: include first aid station", type:"mustIncludeItem", itemId:"first_aid" });
-    }
-  },
-  {
-    id:"accessibility_focus",
-    title:"Inclusion focus",
-    text:"Inclusion focus: You must include 2 accessibility items (not just 1).",
-    apply: (st) => {
-      st.extraObjectives.push({ id:"surp_acc2", label:"Surprise: include at least 2 accessibility items", type:"categoryMin", category:"Accessibility", min:2 });
-    }
-  },
-  {
-    id:"cost_inflation",
-    title:"Cost inflation",
-    text:"Supplier price increase: food lines cost +10% (water, snacks, lunch).",
-    apply: (st) => { st.foodInflationPct += 0.10; }
-  },
-  {
-    id:"venue_downsize",
-    title:"Venue capacity restriction",
-    text:"Venue restriction: Gym is unavailable. Large option removed.",
-    apply: (st) => { st.bannedItemIds.add("venue_gym"); }
-  }
+  { id:"sponsor_pulls_out", title:"Sponsor pulled out", text:"Budget reduced by ₱7,500.", apply: (st) => { st.budgetDelta -= 7500; } },
+  { id:"sponsor_added", title:"New sponsor joined", text:"Budget +₱6,000 but must include marketing.", apply: (st) => { st.budgetDelta += 6000; st.extraObjectives.push({ id:"surp_mkt", label:"Surprise: include at least 1 marketing item", type:"categoryMin", category:"Marketing", min:1 }); } },
+  { id:"attendance_spike", title:"Attendance spike", text:"Target attendees +30.", apply: (st) => { st.attendeeDelta += 30; } },
+  { id:"venue_unavailable", title:"Venue unavailable", text:"Auditorium is unavailable.", apply: (st) => { st.bannedItemIds.add("venue_auditorium"); } },
+  { id:"venue_downsize", title:"Venue restriction", text:"Gym is unavailable.", apply: (st) => { st.bannedItemIds.add("venue_gym"); } },
+  { id:"safety_notice", title:"Safety advisory", text:"Must add ≥1 security + first aid.", apply: (st) => { st.extraObjectives.push({ id:"surp_sec", label:"Surprise: include at least 1 security guard", type:"itemQtyMin", itemId:"security", minQty:1 }); st.extraObjectives.push({ id:"surp_fa", label:"Surprise: include first aid station", type:"mustIncludeItem", itemId:"first_aid" }); } },
+  { id:"accessibility_focus", title:"Inclusion focus", text:"Must include 2 accessibility items.", apply: (st) => { st.extraObjectives.push({ id:"surp_acc2", label:"Surprise: include at least 2 accessibility items", type:"categoryMin", category:"Accessibility", min:2 }); } },
+  { id:"cost_inflation", title:"Cost inflation", text:"Food lines cost +10% (water/snacks/lunch).", apply: (st) => { st.foodInflationPct += 0.10; } },
 ];
 
 /***********************
@@ -507,13 +519,11 @@ const clearLbBtn = byId("clearLbBtn");
 const exportLbBtn = byId("exportLbBtn");
 const lbModePill = byId("lbModePill");
 
-const LB_KEY = "event_budget_leaderboard_v2_venuecaps";
+const LB_KEY = "event_budget_leaderboard_v3_6scenarios";
 
 let state = {
   scenarioId: SCENARIOS[0].id,
-
   selections: {},
-
   isLocked: false,
   submittedAt: null,
 
@@ -534,7 +544,6 @@ function currentScenarioComputed(){
   const budget = s.baseBudget + state.budgetDelta;
   const audience = s.baseAudience;
   const attendeeTarget = Math.max(1, s.baseAttendeeTarget + state.attendeeDelta);
-
   return {
     id: s.id,
     title: s.title,
@@ -577,7 +586,6 @@ function getSelectedVenue(){
 }
 
 function enforceSingleVenue(changedVenueId){
-  // When a venue checkbox is turned on, turn off all other venues automatically
   for(const v of ITEMS.filter(i => i.category === "Venue")){
     if(v.id === changedVenueId) continue;
     if(state.selections[v.id]) state.selections[v.id].checked = false;
@@ -646,16 +654,12 @@ function sumXP(){
   return xp;
 }
 
-function venueExactlyOneOk(){
-  return selectedVenueIds().length === 1;
-}
-
+function venueExactlyOneOk(){ return selectedVenueIds().length === 1; }
 function venueCapacityOk(){
   const s = currentScenarioComputed();
   const v = getSelectedVenue();
   if(!v) return false;
-  const cap = Number(v.capacity || 0);
-  return cap >= s.attendeeTarget;
+  return Number(v.capacity||0) >= s.attendeeTarget;
 }
 
 function checkObjective(obj, totals){
@@ -663,73 +667,69 @@ function checkObjective(obj, totals){
   const target = s.attendeeTarget;
 
   switch(obj.type){
-    case "attendeesMin":
-      return target >= obj.min;
-
-    case "venueExactlyOne":
-      return venueExactlyOneOk();
-
-    case "venueCapacityMin":
-      return venueCapacityOk();
-
-    case "categoryMin":
-      return countCategory(obj.category) >= obj.min;
-
-    case "categoriesCountMin":
-      return countCategories(obj.categories) >= obj.min;
-
-    case "mustIncludeItem":
-      return hasItem(obj.itemId);
-
-    case "mustIncludeAnyItems":
-      return obj.itemIds.some(id => hasItem(id));
-
+    case "venueExactlyOne": return venueExactlyOneOk();
+    case "venueCapacityMin": return venueCapacityOk();
+    case "categoryMin": return countCategory(obj.category) >= obj.min;
+    case "categoriesCountMin": return countCategories(obj.categories) >= obj.min;
+    case "mustIncludeItem": return hasItem(obj.itemId);
+    case "mustIncludeAnyItems": return obj.itemIds.some(id => hasItem(id));
     case "itemQtyMin": {
       const sel = getSelection(obj.itemId);
       return sel.checked && Number(sel.qty || 1) >= obj.minQty;
     }
-
     case "ratioMin": {
       const needed = Math.ceil(target / obj.per);
       const sel = getSelection(obj.itemId);
       return sel.checked && Number(sel.qty || 1) >= needed;
     }
-
-    case "xpMin":
-      return sumXP() >= obj.min;
-
-    case "perHeadMax":
-      return totals.perHead <= obj.max;
-
-    default:
-      return false;
+    case "xpMin": return sumXP() >= obj.min;
+    case "perHeadMax": return totals.perHead <= obj.max;
+    default: return false;
   }
 }
 
+/***********************
+ * SCORING (supports leaderboard even if objectives are not met)
+ * - Everyone can submit.
+ * - Score = Base 50, then deductions + bonuses
+ * Deductions:
+ * - Each unmet required objective: -6 points
+ * - Over budget: -1 point per ₱1,000 overspend (rounded up)
+ * - Venue missing: extra -10 (because it breaks feasibility)
+ * Bonuses:
+ * - Each bonus achieved: +points
+ * - Efficiency: +0..6 points if under budget
+ ***********************/
 function computeScore(totals){
   const s = currentScenarioComputed();
+  const required = s.objectives || [];
+  const unmet = required.filter(o => !checkObjective(o, totals));
+  const unmetCount = unmet.length;
+
   const over = totals.total > s.budget;
-  const requiredOk = s.objectives.every(o => checkObjective(o, totals));
-  const bonusPoints = (s.bonus||[]).reduce((sum, b) => sum + (checkObjective(b, totals) ? (b.points||0) : 0), 0);
+  const overBy = Math.max(0, totals.total - s.budget);
 
-  let score = 0;
-  const missingCount = s.objectives.filter(o => !checkObjective(o, totals)).length;
+  let score = 50;
 
-  if(!over && requiredOk) score = 12;
-  else if(!over) score = 7;
-  else score = 3;
+  // required objectives penalty
+  score -= unmetCount * 6;
 
-  score -= missingCount;
+  // extra penalty for not selecting a venue or multiple venues
+  if(!venueExactlyOneOk()) score -= 10;
 
+  // budget penalty
   if(over){
-    score -= Math.ceil((totals.total - s.budget) / 5000);
+    score -= Math.ceil(overBy / 1000);
   } else {
     const remaining = s.budget - totals.total;
-    const efficiency = Math.min(2, Math.floor(remaining / 8000));
-    score += efficiency;
+    score += Math.min(6, Math.floor(remaining / 5000)); // reward being under budget
   }
 
-  score += bonusPoints;
+  // bonus points
+  const bonus = (s.bonus||[]).reduce((sum, b) => sum + (checkObjective(b, totals) ? (b.points||0) : 0), 0);
+  score += bonus;
+
+  // floor
   return Math.max(0, score);
 }
 
@@ -772,14 +772,11 @@ function renderItems(){
     cb.disabled = state.isLocked;
     cb.addEventListener("change", () => {
       if(state.isLocked) return;
-
       sel.checked = cb.checked;
 
-      // NEW: enforce only 1 venue
       if(item.category === "Venue" && sel.checked){
         enforceSingleVenue(item.id);
       }
-
       renderAll();
     });
 
@@ -803,16 +800,13 @@ function renderItems(){
     }
 
     const priceText = item.perHead ? `${peso(unitCost)} per attendee` : `${peso(unitCost)}`;
-    const tags = (item.tags||[]).slice(0,4).map(t => `<span class="tag">${t}</span>`).join("");
     const xpTag = `<span class="tag">${Number(item.xp||0)} XP</span>`;
+    const tags = (item.tags||[]).slice(0,4).map(t => `<span class="tag">${t}</span>`).join("");
 
-    // Venue fit hint (not required, but helpful)
     let venueHint = "";
     if(item.category === "Venue"){
       const ok = item.capacity >= s.attendeeTarget;
-      venueHint = ok
-        ? `<span class="tag">Fits target ✅</span>`
-        : `<span class="tag">Too small ⚠</span>`;
+      venueHint = ok ? `<span class="tag">Fits target ✅</span>` : `<span class="tag">Too small ⚠</span>`;
     }
 
     meta.innerHTML = `<span class="price">${priceText}</span> ${xpTag} ${inflationNote} ${venueHint} ${tags}`;
@@ -822,7 +816,6 @@ function renderItems(){
     const right = document.createElement("div");
     right.className = "qty";
 
-    // qty input only for non-venue; venues have qty fixed at 1 (no reason to duplicate)
     if(item.category === "Venue"){
       const fixed = document.createElement("div");
       fixed.className = "small mono";
@@ -864,24 +857,26 @@ function renderItems(){
 
 function renderObjectives(totals){
   const s = currentScenarioComputed();
-  const allObjs = [...s.objectives];
+  const allObjs = [...(s.objectives||[])];
   objectivesBox.innerHTML = "";
 
-  const head = document.createElement("div");
-  objectivesBox.appendChild(head);
-
-  // Venue summary line
   const v = getSelectedVenue();
   const venueSummary = v
     ? `Venue selected: <span class="mono">${v.id}</span> (Cap ${v.capacity}).`
     : `No venue selected yet.`;
 
+  const unmet = allObjs.filter(o => !checkObjective(o, totals)).length;
+  const score = computeScore(totals);
+
+  const head = document.createElement("div");
   head.innerHTML = `
     <div class="small">
-      Goal: meet all required objectives while staying within budget. <br/>
-      ${venueSummary}
+      You can submit even if you miss objectives. Your score will be reduced. <br/>
+      ${venueSummary} <br/>
+      Unmet required objectives: <span class="mono">${unmet}</span> • Current score: <span class="mono">${score}</span>
     </div>
   `;
+  objectivesBox.appendChild(head);
 
   for(const obj of allObjs){
     const ok = checkObjective(obj, totals);
@@ -891,7 +886,7 @@ function renderObjectives(totals){
       <div class="dot ${ok ? "good" : "bad"}"></div>
       <div>
         <div>${obj.label}</div>
-        <div class="small">${ok ? "Met" : "Not met yet"}</div>
+        <div class="small">${ok ? "Met" : "Not met yet (deduction applies)"}<\/div>
       </div>
     `;
     objectivesBox.appendChild(el);
@@ -941,7 +936,7 @@ function renderBasket(totals){
     `;
     basketBody.appendChild(tr);
   }
-  basketNote.textContent = "Submission idea: 3 sentences explaining trade-offs and why your venue fits the target attendees.";
+  basketNote.textContent = "Tip: submit early, then compare scores. Higher is better.";
 }
 
 function renderKpis(totals){
@@ -961,20 +956,20 @@ function renderKpis(totals){
   barFill.style.width = pct + "%";
   barFill.style.background = remaining >= 0 ? "var(--good)" : "var(--bad)";
 
-  const requiredOk = s.objectives.every(o => checkObjective(o, totals));
+  const unmetCount = (s.objectives||[]).filter(o => !checkObjective(o, totals)).length;
   const over = totals.total > s.budget;
   const score = computeScore(totals);
 
-  const statusClass = over ? "bad" : (requiredOk ? "good" : "warn");
+  const statusClass = over ? "bad" : (unmetCount === 0 ? "good" : "warn");
   statusBox.className = `status ${statusClass}`;
 
   let msg = "";
   if(over){
-    msg = `You are over budget by <strong>${peso(totals.total - s.budget)}</strong>. Cut items or downgrade options.`;
-  } else if(requiredOk){
-    msg = `✅ You meet all required objectives and stay within budget.`;
+    msg = `Over budget by <strong>${peso(totals.total - s.budget)}</strong>. You can still submit, but score drops.`;
+  } else if(unmetCount === 0){
+    msg = `✅ All required objectives met. Try to improve efficiency for more points.`;
   } else {
-    msg = `You are within budget, but some objectives are not met yet. Fix the checklist before submitting.`;
+    msg = `You are within budget, but missing <strong>${unmetCount}</strong> objective(s). You can still submit (with deductions).`;
   }
 
   const v = getSelectedVenue();
@@ -1089,7 +1084,7 @@ function base64UrlDecode(b64url){
 function buildSharePayload(totals){
   const s = currentScenarioComputed();
   const payload = {
-    v: 2,
+    v: 3,
     team: (teamNameInput.value || "").trim() || "Unnamed team",
     scenarioId: state.scenarioId,
     submittedAt: new Date().toISOString(),
@@ -1122,7 +1117,7 @@ function loadFromShareCode(code){
   const json = base64UrlDecode(code.trim());
   const payload = JSON.parse(json);
 
-  if(!payload || (payload.v !== 1 && payload.v !== 2)) throw new Error("Unsupported code version.");
+  if(!payload || payload.v !== 3) throw new Error("Unsupported code version.");
 
   state.scenarioId = payload.scenarioId || SCENARIOS[0].id;
 
@@ -1173,8 +1168,7 @@ function addToLeaderboard(entry){
     return (b.ts || 0) - (a.ts || 0);
   });
 
-  const top10 = lb.slice(0,10);
-  setLocalLeaderboard(top10);
+  setLocalLeaderboard(lb.slice(0,10));
 }
 
 function renderLeaderboard(){
@@ -1225,14 +1219,14 @@ async function postToGoogleSheet(entry){
 }
 
 /***********************
- * SUBMIT
+ * SUBMIT (always allowed)
  ***********************/
 async function submitPlan(){
   if(state.isLocked) return;
 
   const totals = calcTotals();
   const s = currentScenarioComputed();
-  const requiredOk = s.objectives.every(o => checkObjective(o, totals));
+  const unmetCount = (s.objectives||[]).filter(o => !checkObjective(o, totals)).length;
   const over = totals.total > s.budget;
 
   state.isLocked = true;
@@ -1253,6 +1247,8 @@ async function submitPlan(){
     perHead: totals.perHead,
     attendeeTarget: s.attendeeTarget,
     surprises: state.surpriseHistory.length,
+    unmetObjectives: unmetCount,
+    overBudget: over ? (totals.total - s.budget) : 0,
     code
   };
 
@@ -1262,13 +1258,12 @@ async function submitPlan(){
   const postResult = await postToGoogleSheet(entry);
 
   const noteParts = [];
-  if(requiredOk && !over) noteParts.push("✅ Submitted as PASS");
-  else if(over) noteParts.push("Submitted but over budget");
-  else noteParts.push("Submitted but missing objectives");
-
-  if(postResult && postResult.skipped) noteParts.push("Leaderboard: local only");
+  noteParts.push(`Submitted. Score=${payload.score}`);
+  if(over) noteParts.push(`Over budget by ${peso(totals.total - s.budget)}`);
+  if(unmetCount) noteParts.push(`Unmet objectives=${unmetCount}`);
+  if(postResult && postResult.skipped) noteParts.push("Leaderboard: local");
   else if(postResult && postResult.ok) noteParts.push("Posted to Sheets");
-  else if(postResult && !postResult.ok) noteParts.push("Sheets post failed (local still saved)");
+  else if(postResult && !postResult.ok) noteParts.push("Sheets post failed");
 
   surpriseLog.value += `\n[SUBMIT] ${noteParts.join(" | ")}\n`;
   renderAll();
@@ -1293,7 +1288,7 @@ function initButtons(){
   surpriseBtn.addEventListener("click", drawSurprise);
   submitBtn.addEventListener("click", submitPlan);
 
-  byId("copyCodeBtn").addEventListener("click", async () => {
+  copyCodeBtn.addEventListener("click", async () => {
     const code = shareCodeInput.value.trim();
     if(!code) return;
     try{
@@ -1304,7 +1299,7 @@ function initButtons(){
     }
   });
 
-  byId("loadBtn").addEventListener("click", () => {
+  loadBtn.addEventListener("click", () => {
     const code = loadCodeInput.value.trim();
     if(!code) return;
     try{
@@ -1328,7 +1323,7 @@ function initButtons(){
       await navigator.clipboard.writeText(txt);
       surpriseLog.value += `[LB] Leaderboard JSON copied.\n`;
     }catch(e){
-      surpriseLog.value += `[LB] Could not copy. Open DevTools to copy from localStorage.\n`;
+      surpriseLog.value += `[LB] Could not copy.\n`;
     }
   });
 
